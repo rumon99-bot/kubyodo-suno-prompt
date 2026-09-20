@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suno Prompt Lab - 高度プロンプト設計工房</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --border: #334155;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text); padding: 20px; line-height: 1.5; }
+    
+    .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+
+    /* ヘッダー */
+    header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 15px 25px; border-radius: 12px; border: 1px solid var(--border); }
+    h1 { font-size: 1.4rem; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+    
+    .mode-switch { display: flex; background: var(--bg-color); padding: 4px; border-radius: 8px; border: 1px solid var(--border); }
+    .mode-btn { padding: 8px 16px; border: none; background: transparent; color: var(--text-dim); cursor: pointer; border-radius: 6px; font-weight: bold; transition: all 0.2s; }
+    .mode-btn.active { background: var(--accent); color: white; }
+
+    /* パネル共通 */
+    .panel { background: var(--card-bg); border-radius: 12px; padding: 20px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 20px; }
+    
+    .section-title { font-size: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; color: var(--accent); display: flex; justify-content: space-between; }
+
+    /* タグ選択グループ */
+    .group-title { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+    .tag-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .tag { background: #334155; color: var(--text); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+    .tag:hover { background: #475569; }
+    .tag.selected { background: var(--accent); border-color: #a78bfa; font-weight: bold; }
+
+    /* 入力フォーム */
+    textarea, input[type="text"] { width: 100%; background: var(--bg-color); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 8px; font-size: 0.9rem; resize: vertical; }
+    textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+
+    /* 出力エリア */
+    .output-card { background: var(--bg-color); border: 1px solid var(--border); border-radius: 8px; padding: 15px; position: relative; margin-bottom: 15px; }
+    .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .output-title { font-size: 0.85rem; font-weight: bold; color: var(--text-dim); }
+    .counter { font-size: 0.8rem; font-weight: bold; }
+    .counter.ok { color: var(--success); }
+    .counter.over { color: var(--danger); }
+    
+    .copy-btn { background: var(--border); color: var(--text); border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: background 0.2s; }
+    .copy-btn:hover { background: var(--accent); }
+
+    pre { white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; }
+
+    /* アコーディオン風（詳細設定用） */
+    .advanced-only { display: none; }
+    body.advanced-mode .advanced-only { display: block; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🎵 Suno Prompt Lab v2.0</h1>
+    <div class="mode-switch">
+      <button class="mode-btn active" id="btn-easy" onclick="setMode('easy')">簡単モード</button>
+      <button class="mode-btn" id="btn-adv" onclick="setMode('adv')">詳細モード</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 左側：設定パネル -->
+    <div class="panel">
+      
+      <!-- 基本設定（両モード共通） -->
+      <div>
+        <div class="section-title">基本スタイル</div>
+        
+        <div class="group-title">メインジャンル</div>
+        <div class="tag-container" id="genre-tags">
+          <span class="tag" onclick="toggleTag(this, 'genre', 'J-Pop')">J-Pop</span>
+          <span class="tag" onclick="toggleTag(this, 'genre', 'City Pop')">City Pop</span>
+          <span class="tag" onclick="toggleTag(this, 'genre', 'Anime Opening')">Anime OP</span>
+          <span class="tag" onclick="toggleTag(this, 'genre', 'Rock')">Rock</span>
+          <span class="tag" onclick="toggleTag(this, 'genre', 'EDM')">EDM</span>
+          <span class="tag" onclick="toggleTag(this, 'genre', 'Lo-fi Hiphop')">Lo-fi</span>
+        </div>
+
+        <div class="group-title">ムード</div>
+        <div class="tag-container" id="mood-tags">
+          <span class="tag" onclick="toggleTag(this, 'mood', 'Upbeat')">明るい/高揚</span>
+          <span class="tag" onclick="toggleTag(this, 'mood', 'Emotional')">エモい/切ない</span>
+          <span class="tag" onclick="toggleTag(this, 'mood', 'Dark')">ダーク/重厚</span>
+          <span class="tag" onclick="toggleTag(this, 'mood', 'Relaxing')">リラックス</span>
+        </div>
+
+        <div class="group-title">ボーカルタイプ</div>
+        <div class="tag-container" id="vocal-tags">
+          <span class="tag" onclick="toggleTag(this, 'vocal', 'Female vocal')">女性</span>
+          <span class="tag" onclick="toggleTag(this, 'vocal', 'Male vocal')">男性</span>
+          <span class="tag" onclick="toggleTag(this, 'vocal', 'Duet')">男女デュエット</span>
+          <span class="tag" onclick="toggleTag(this, 'vocal', 'Instrumental')">インスト(歌なし)</span>
+        </div>
+
+        <div class="group-title">テンポ</div>
+        <div class="tag-container" id="tempo-tags">
+          <span class="tag" onclick="toggleTag(this, 'tempo', 'Fast tempo, 145 bpm')">アップテンポ</span>
+          <span class="tag" onclick="toggleTag(this, 'tempo', 'Medium tempo, 110 bpm')">ミディアム</span>
+          <span class="tag" onclick="toggleTag(this, 'tempo', 'Slow ballad, 75 bpm')">スロー/バラード</span>
+        </div>
+      </div>
+
+      <!-- 詳細設定（詳細モードのみ表示） -->
+      <div class="advanced-only">
+        <div class="section-title">高度な演技・構成演出</div>
+
+        <div class="group-title">声の演技・発声（Vocal Style）</div>
+        <div class="tag-container">
+          <span class="tag" onclick="toggleTag(this, 'delivery', 'Whisper voice')">ウィスパー（囁き）</span>
+          <span class="tag" onclick="toggleTag(this, 'delivery', 'Spoken word')">語り/朗読</span>
+          <span class="tag" onclick="toggleTag(this, 'delivery', 'Belt voice')">パワフル力唱</span>
+          <span class="tag" onclick="toggleTag(this, 'delivery', 'Emotional break')">泣き節</span>
+        </div>
+
+        <div class="group-title">演奏展開・楽器展開</div>
+        <div class="tag-container">
+          <span class="tag" onclick="toggleTag(this, 'arr', 'Acoustic intro')">アコギ始まり</span>
+          <span class="tag" onclick="toggleTag(this, 'arr', 'Guitar solo')">間奏ギターソロ</span>
+          <span class="tag" onclick="toggleTag(this, 'arr', 'Key change chorus')">ラスサビ転調</span>
+          <span class="tag" onclick="toggleTag(this, 'arr', 'Fade out ending')">フェードアウト余韻</span>
+        </div>
+
+        <div class="group-title">歌詞本文（仮入力・構成生成用）</div>
+        <textarea id="lyrics-input" rows="4" placeholder="ここに歌詞を入力すると、メタタグを挿入した状態で整形されます..." oninput="generateAll()"></textarea>
+      </div>
+
+    </div>
+
+    <!-- 右側：生成結果パネル（4要素） -->
+    <div class="panel">
+      <div class="section-title">生成結果 (Suno用プロンプト)</div>
+
+      <!-- ① 楽曲設計書 -->
+      <div class="output-card">
+        <div class="output-header">
+          <span class="output-title">① 曲全体の設計書（概要）</span>
+        </div>
+        <pre id="out-design">-</pre>
+      </div>
+
+      <!-- ② Style欄プロンプト（文字数制限つき） -->
+      <div class="output-card">
+        <div class="output-header">
+          <span class="output-title">② Style欄用プロンプト（英語・120文字制限）</span>
+          <span class="counter ok" id="style-counter">0 / 120</span>
+          <button class="copy-btn" onclick="copyText('out-style')">コピー</button>
+        </div>
+        <pre id="out-style">-</pre>
+      </div>
+
+      <!-- ③ 歌詞欄指示メタタグ -->
+      <div class="output-card">
+        <div class="output-header">
+          <span class="output-title">③ 歌詞欄用 構成＆演奏指示</span>
+          <button class="copy-btn" onclick="copyText('out-lyrics')">コピー</button>
+        </div>
+        <pre id="out-lyrics">-</pre>
+      </div>
+
+      <!-- ④ 生成後アドバイス -->
+      <div class="output-card">
+        <div class="output-header">
+          <span class="output-title">④ 生成後の修正・調整アドバイス</span>
+        </div>
+        <pre id="out-advice">-</pre>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // 状態管理
+    let currentMode = 'easy';
+    const selections = {
+      genre: [],
+      mood: [],
+      vocal: [],
+      tempo: [],
+      delivery: [],
+      arr: []
+    };
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('btn-easy').classList.toggle('active', mode === 'easy');
+      document.getElementById('btn-adv').classList.toggle('active', mode === 'adv');
+      document.body.classList.toggle('advanced-mode', mode === 'adv');
+      generateAll();
+    }
+
+    function toggleTag(element, category, value) {
+      element.classList.toggle('selected');
+      const index = selections[category].indexOf(value);
+      if (index > -1) {
+        selections[category].splice(index, 1);
+      } else {
+        selections[category].push(value);
+      }
+      generateAll();
+    }
+
+    function generateAll() {
+      // --- ① 設計書生成 ---
+      let designText = `【モード】: ${currentMode === 'easy' ? '簡単' : '詳細'}\n`;
+      designText += `【ジャンル】: ${selections.genre.join(', ') || '未指定'}\n`;
+      designText += `【雰囲気/テンポ】: ${selections.mood.join(', ')} / ${selections.tempo.join(', ')}\n`;
+      designText += `【ボーカル】: ${selections.vocal.join(', ')}`;
+      if (currentMode === 'adv') {
+        designText += `\n【演出・演技】: ${selections.delivery.join(', ')}`;
+        designText += `\n【展開】: ${selections.arr.join(', ')}`;
+      }
+      document.getElementById('out-design').innerText = designText;
+
+      // --- ② Style欄プロンプト（120文字圧縮ロジック） ---
+      let rawStyleArray = [
+        ...selections.genre,
+        ...selections.mood,
+        ...selections.vocal,
+        ...selections.tempo
+      ];
+      
+      // 詳細モードの要素追加
+      if (currentMode === 'adv') {
+        rawStyleArray.push(...selections.delivery);
+      }
+
+      let styleString = rawStyleArray.join(', ');
+
+      // 120文字オーバー対策：自動短縮辞書変換
+      if (styleString.length > 120) {
+        styleString = styleString
+          .replace('Female vocal', 'female voice')
+          .replace('Male vocal', 'male voice')
+          .replace('Anime Opening', 'Anime OP')
+          .replace('Fast tempo, 145 bpm', '145bpm')
+          .replace('Medium tempo, 110 bpm', '110bpm')
+          .replace('Slow ballad, 75 bpm', '75bpm');
+      }
+
+      // それでも超える場合は後ろから切り捨て
+      if (styleString.length > 120) {
+        styleString = styleString.substring(0, 117) + '...';
+      }
+
+      const styleEl = document.getElementById('out-style');
+      const counterEl = document.getElementById('style-counter');
+      styleEl.innerText = styleString || '(要素を選択してください)';
+      
+      const charCount = styleString.length;
+      counterEl.innerText = `${charCount} / 120`;
+      counterEl.className = charCount > 120 ? 'counter over' : 'counter ok';
+
+      // --- ③ 歌詞用メタタグ構造化 ---
+      let userLyrics = document.getElementById('lyrics-input').value || '（ここに歌詞が入ります）';
+      let lyricsOutput = '';
+
+      if (selections.arr.includes('Acoustic intro')) {
+        lyricsOutput += `[Intro: Acoustic guitar solo, Soft]\n\n`;
+      } else {
+        lyricsOutput += `[Intro: Instrumental]\n\n`;
+      }
+
+      lyricsOutput += `[Verse 1]\n${userLyrics}\n\n`;
+
+      if (selections.delivery.includes('Spoken word') || selections.delivery.includes('Whisper voice')) {
+        lyricsOutput += `[Bridge: Spoken Word, Whisper voice]\n(語り・囁きパート)\n\n`;
+      }
+
+      if (selections.arr.includes('Guitar solo')) {
+        lyricsOutput += `[Guitar Solo: Emotional, Soaring]\n\n`;
+      }
+
+      if (selections.arr.includes('Key change chorus')) {
+        lyricsOutput += `[Final Chorus: Key Change, Full Energy, High Voice]\n（ラストサビ歌詞）\n\n`;
+      } else {
+        lyricsOutput += `[Chorus: Full Band]\n（サビ歌詞）\n\n`;
+      }
+
+      if (selections.arr.includes('Fade out ending')) {
+        lyricsOutput += `[Outro: Fading out with reverb]\n[End]`;
+      } else {
+        lyricsOutput += `[Outro]\n[End]`;
+      }
+
+      document.getElementById('out-lyrics').innerText = lyricsOutput;
+
+      // --- ④ 修正用アドバイス生成 ---
+      let adviceText = '';
+      if (selections.vocal.includes('Duet')) {
+        adviceText += '・男女デュエットで声が混ざる場合は、歌詞欄に [Male] / [Female] を行頭に明記してください。\n';
+      }
+      if (selections.arr.includes('Key change chorus')) {
+        adviceText += '・転調が自然にかからない場合は、サビ前に [Modulation] や [Key Change] のみを書いた空白行を入れてみてください。\n';
+      }
+      if (selections.delivery.includes('Whisper voice')) {
+        adviceText += '・囁き声が楽器にかき消される場合、[Minimal Instrument] タグを添えて伴奏を落としてください。\n';
+      }
+      if (!adviceText) {
+        adviceText = '・意図した展開にならない場合は、Style欄の単語順序を並べ替えるか、不要なタグを減らしてみてください。';
+      }
+      document.getElementById('out-advice').innerText = adviceText;
+    }
+
+    function copyText(elementId) {
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('クリップボードにコピーしました！');
+      });
+    }
+
+    // 初期実行
+    generateAll();
+  </script>
+</body>
+</html>
